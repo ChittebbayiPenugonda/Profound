@@ -23,6 +23,7 @@ function App() {
   //console.log(apiKey);
   const [userThoughts, setUserThoughts] = useState(""); 
   const [submittedText, setSubmittedText] = useState(""); 
+  const [audioURLARRAY, setAudioURLARRAY] = useState([]);
 
 
   // PDF upload handler
@@ -30,6 +31,7 @@ function App() {
     const uploadedFile = e.target.files[0];
     const formData = new FormData();
     formData.append('file', uploadedFile);
+    let audioURLArray = [];
 
     try {
       const response = await fetch('/upload', {
@@ -42,7 +44,15 @@ function App() {
       if (response.ok) {
         const fileURL = URL.createObjectURL(uploadedFile);
         setFile(fileURL);
+        for (var i = 0; i < result.page_text.length; i++) {
+          const openaimessage = await getAudioBuffer(result.page_text[i]);
+          const blob = new Blob([openaimessage], {type:'audio/mpeg'});
+          const audioURLs = URL.createObjectURL(blob);
+          audioURLArray.push(audioURLs);
+        }
+        setAudioURLARRAY(audioURLArray);
         setMessage(result.page_text);
+
       } else {
         setMessage(`Error: ${result.error}`);
       }
@@ -61,33 +71,13 @@ function App() {
   const goToNextPage = () => setPageNumber(prev => Math.min(prev + 1, numPages));
 
   // Text-to-Speech handler
-  const handleTextToSpeech = async () => {
+  const handleTextToSpeech = () => {
     setIsLoading(true);
-    const text = message[pageNumber-1];
-
-    const openaimessage = await getAudioBuffer(text);
-    console.log(text);
-    const blob = new Blob([openaimessage], {type:'audio/mpeg'});
-    const audioURL2 = URL.createObjectURL(blob);
-    setAudioUrl(audioURL2);
-    setIsLoading(false);
-/**
-    try {
-      const response = await query({ inputs: text });
-
-      if (response.ok) {
-        const audioBlob = await response.blob();
-        const audioUrl1 = URL.createObjectURL(audioBlob);
-        
-        setAudioUrl(audioUrl1);
-        setIsLoading(false);
-        
-      } else {
-        console.error("Error with the Hugging Face API", response.statusText);
-      }
-    } catch (error) {
-      console.error("Error in processing the API request:", error);
-    }*/
+    setAudioUrl(null);
+    setTimeout(() => {
+      setAudioUrl(audioURLARRAY[pageNumber - 1]);
+      setIsLoading(false);
+    }, 0);
   };
 
   // Handle "hand raise" button click
@@ -117,30 +107,7 @@ function App() {
     return Buffer.from(response.data);
   }
 
-  // Fetch request for Text-to-Speech
-  async function query(data) {
-    var response = await fetch("https://api-inference.huggingface.co/models/suno/bark", {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-      body: JSON.stringify(data),
-    });
 
-    if (!response.ok) {
-      response = await fetch("https://api-inference.huggingface.co/models/facebook/fastspeech2-en-ljspeech", {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-        body: JSON.stringify(data),
-      });
-    }
-
-    return response;
-  }
 
   const handleSubmit = () => {
     setSubmittedText(userThoughts);
